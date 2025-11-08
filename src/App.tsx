@@ -1,35 +1,62 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useRef, useEffect } from "react";
+import ChatMessage from "./components/ChatMessage";
+import ChatInput from "./components/ChatInput";
+import { getChatReply } from "./services/openaiService";
+import type { Message } from "./types";
+import styles from "./App.module.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+const App: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "assistant", content: "Hi how can I help you？" },
+  ]);
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (userInput: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: userInput }]);
+    setLoading(true);
+
+    setMessages((prev) => [...prev, { role: "assistant", content: "Thinking..." }]);
+
+    try {
+      const reply = await getChatReply(userInput);
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages.pop();
+        newMessages.push({ role: "assistant", content: reply });
+        return newMessages;
+      });
+    } catch (err) {
+      console.log(err);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "❌ Error: can not connect to server" },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <div className={styles.container}>
+      <div className={styles.chatBox}>
+        <div className={styles.header}>Simple React Chatbot</div>
 
-export default App
+        <div className={styles.messages}>
+          {messages.map((msg, idx) => (
+            <ChatMessage key={idx} message={msg} />
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        <ChatInput onSend={handleSend} disabled={loading} />
+      </div>
+    </div>
+  );
+};
+
+export default App;
